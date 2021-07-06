@@ -25,7 +25,7 @@ setup(
 	author="Christian Schudoma",
 	author_email="cschu1981@gmail.com",
 	license="MIT",
-	download_url="https://github.com/cschu/bamr/archive/refs/tags/v0.1.tar.gz",
+	download_url="https://github.com/cschu/bamr/archive/refs/tags/v0.1.1.tar.gz",
 	classifiers=[
 		"Development Status :: 4 - Beta",
 		"Topic :: Scientific/Engineering :: Bio-Informatics",
