@@ -32,7 +32,7 @@ with open(path.join(here, "DESCRIPTION.md"), encoding="utf-8") as description:
 		download_url="https://github.com/cschu/bamr/archive/refs/tags/v0.1.tar.gz",
 		classifiers=[
 			"Development Status :: 4 - Beta",
-			"Topic :: Scientific Engineering :: Bio/Informatics",
+			"Topic :: Scientific/Engineering :: Bio-Informatics",
 			"License :: OSI Approved :: MIT License",
 			"Operating System :: POSIX :: Linux",
 			"Programming Language :: Python :: 3.7",
