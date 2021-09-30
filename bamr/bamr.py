@@ -100,7 +100,7 @@ class BamFile:
 		if large_header:
 			t0 = time.time()
 			print("Screening bam for used reference sequences... ", flush=True, end="")
-			present_refs = set(aln.rid for _, aln in self.get_alignments())
+			present_refs = set(aln.rid for _, aln in self.get_alignments(parse_tags=False, reference_screening=True))
 			t1 = time.time()
 			print(" done. ({}s)".format(t1-t0), flush=True)
 			self._file.seek(0)
@@ -211,7 +211,7 @@ class BamFile:
 
 	def get_alignments(
 		self, required_flags=None, disallowed_flags=None, allow_unique=True, allow_multiple=True,
-		min_identity=None, min_seqlen=None
+		min_identity=None, min_seqlen=None, parse_tags=True, reference_screening=False
 	):
 		aln_count = 1
 		if not allow_multiple and not allow_unique:
@@ -245,7 +245,12 @@ class BamFile:
 			total_read = 32 + len_rname + 4 * n_cigarops + (len_seq + 1) // 2 + len_seq
 			self._fpos += 4 + total_read
 			tags_size = aln_size - total_read
-			tags = self._parse_tags(tags_size)
+			if parse_tags or not reference_screening:
+				tags = self._parse_tags(tags_size)
+			else:
+				_ = self._file.read(tags_size)
+				tags = dict()
+
 			self._fpos += tags_size #4 + aln_size
 
 			md_tag = tags.get("MD", "")
@@ -257,30 +262,30 @@ class BamFile:
 			else:
 				len_seq = None
 
-			if not len_seq:
+			if parse_tags and not len_seq:
 				print(f"Read {qname} does not have length information. Skipping", file=sys.stderr, flush=True)
 
-			flag_check = all([
+			flag_check = all((
 				(required_flags is None or (flag & required_flags)),
 				(disallowed_flags is None or not (flag & disallowed_flags))
-			])
+			))
 
 			is_unique = mapq != 0
-			atype_check = any([
+			atype_check = any((
 				(is_unique and allow_unique),
 				(not is_unique and allow_multiple)
-			])
+			))
 
-			filter_check = all([
+			filter_check = all((
 				len_seq,
 				(min_seqlen is None or len_seq >= min_seqlen),
 				(min_identity is None or 1 - (tags.get("NM", 0) / len_seq) >= min_identity)
-			])
+			))
 
-			if all([flag_check, atype_check, filter_check]):
+			if reference_screening or all((flag_check, atype_check, filter_check)):
 				yield (
 					aln_count,
-					BamAlignment(qname, flag, rid, pos, mapq, cigar, next_rid, next_pos, tlen, len_seq, tags)
+					BamAlignment(qname, flag, rid, pos, mapq, cigar, next_rid, next_pos, tlen, len_seq, tags if tags else None)
 				)
 			aln_count += 1
 
