@@ -97,7 +97,7 @@ class BamFile:
 		self._reverse_references = dict()
 
 		self._read_header(keep_refs=set() if large_header else None)
-		if large_header:
+		if self._references and large_header:
 			t0 = time.time()
 			print("Screening bam for used reference sequences... ", flush=True, end="")
 			present_refs = set(aln.rid for _, aln in self.get_alignments(parse_tags=False, reference_screening=True))
@@ -140,8 +140,12 @@ class BamFile:
 
 	def get_reference(self, rid):
 		rid_index = self._refmap.get(rid, rid)
-		rname, rlen = self._references[rid_index]
-		return rname.decode(), rlen
+		if self._references:
+			rname, rlen = self._references[rid_index]
+			rname = rname.decode()
+		else:
+			rname, rlen = None, 0
+		return rname, rlen
 
 	def n_references(self):
 		return len(self._references)
@@ -169,9 +173,7 @@ class BamFile:
 		bytes_read = 0
 
 		while bytes_read < size:
-			# print(bytes_read, size)
 			tag, tag_type = struct.unpack("2sc", self._file.read(3))
-			# print(tag, tag_type)
 			tag, tag_type = map(bytes.decode, (tag, tag_type))
 			tag = "".join(tag)
 			params = BamAlignment.TAG_PARAMS.get(tag_type)
@@ -228,19 +230,10 @@ class BamFile:
 				self._file.read(32)
 			)
 
-			# print(*zip(
-			#	"rid pos len_rname mapq _ n_cigarops flag len_seq next_rid next_pos tlen".split(" "), 
-			#	(rid, pos, len_rname, mapq, _, n_cigarops, flag, len_seq, next_rid, next_pos, tlen)
-			# ))
-
 			qname = self._file.read(len_rname)
-			# print('qname', qname)
 			cigar = struct.unpack("I" * n_cigarops, self._file.read(4 * n_cigarops))
-			# print('cigar', cigar)
 			self._file.read((len_seq + 1) // 2) # encoded read sequence
-			# print('seq', _)
 			self._file.read(len_seq) # quals
-			# print('quals', _)
 
 			total_read = 32 + len_rname + 4 * n_cigarops + (len_seq + 1) // 2 + len_seq
 			self._fpos += 4 + total_read
@@ -259,10 +252,8 @@ class BamFile:
 					sum(map(lambda x:int(x.group()), re.finditer("[0-9]+", md_tag))),
 					sum(map(lambda x:len(x.group()), re.finditer("[A-Z]+", md_tag)))
 				))
-			else:
-				len_seq = None
 
-			if parse_tags and not len_seq:
+			if (reference_screening or parse_tags) and not len_seq:
 				print(f"Read {qname} does not have length information. Skipping", file=sys.stderr, flush=True)
 
 			flag_check = all((
@@ -277,7 +268,7 @@ class BamFile:
 			))
 
 			filter_check = all((
-				len_seq,
+				len_seq or reference_screening or parse_tags,
 				(min_seqlen is None or len_seq >= min_seqlen),
 				(min_identity is None or 1 - (tags.get("NM", 0) / len_seq) >= min_identity)
 			))
